@@ -135,7 +135,6 @@ int main(int argc, char *argv[]) {
   int sizes[100];
   int headersize = sizeof(header_t);
   int nodesize = sizeof(node_t);
-  int list1[100] = {[0] = 4096 - 16 - 1024 - 1024 - 512 - (16 * 3)};
 
   /* let's print some sizes of types so we know what they are */
   printf("sizes:\n");
@@ -166,7 +165,6 @@ int main(int argc, char *argv[]) {
   sizes[1] = 1024;
   sizes[2] = 512;
 
-  //int list1[1]
   freelist[0] = HEAPSIZE - 1024 - 1024 - 512 - (nodesize * 1) - (headersize * 3);
   if (complete_state_check(__head, freelist, 1, ptr, 3, sizes)) {
     printf("Test 1: Simple Allocation is Good :)\n");
