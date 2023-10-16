@@ -97,6 +97,41 @@ void *first_fit(size_t req_size) {
   node_t *prev = NULL; /* if listitem is __head, then prev must be null */
   header_t *alloc; /* a pointer to a header you can use for your allocation */
 
+  size_t total_size = req_size + sizeof(header_t);
+
+  while (listitem != NULL) {
+    if (listitem->size == total_size) // found a region with the correct size
+    {
+      ptr = (void *)(listitem++);
+      if (prev != NULL)
+      {
+        prev->next = listitem->next;
+      }
+      else
+      {
+        __head = listitem-> next;
+      }
+      break;
+    }
+    
+    if (listitem->size > total_size) // found a region that is too large
+    {
+      ptr = (void *)(listitem++);
+      __head = (node_t *)((char *)ptr + req_size);
+      __head->size = listitem->size - total_size;
+      __head->next - listitem->next;
+      break;
+
+    }
+    prev = listitem;
+    listitem = listitem->next;
+
+  }
+
+  if (DEBUG) printf("Returning pointer: %p\n", ptr);
+  return ptr;
+}
+
   /* traverse the free list from __head! when you encounter a region that
    * is large enough to hold the buffer and required header, use it!
    * If the region is larger than you need, split the buffer into two
@@ -117,11 +152,6 @@ void *first_fit(size_t req_size) {
    *     of the old region.
    * --> If you divide a region, remember to update prev's next pointer!
    */
-
-  if (DEBUG) printf("Returning pointer: %p\n", ptr);
-  return ptr;
-
-}
 
 /* myalloc returns a void pointer to size bytes or NULL if it can't.
  * myalloc will check the free regions in the free list, which is pointed to by
@@ -179,6 +209,9 @@ void myfree(void *ptr) {
    * old head. Voila! You've just turned an allocated buffer into a
    * free region!
    */
+
+
+  
 
   /* save the current __head of the freelist */
   /* ??? */
