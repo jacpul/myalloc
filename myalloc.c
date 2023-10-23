@@ -62,30 +62,25 @@ void sort_freelist() {
 }
 
 void coalesce_freelist() {
-  if (DEBUG) printf("In coalesce freelist...\n");
+    node_t *current = __head;
+    node_t *previous = NULL;
 
-  // Sort the free list before coalescing
-  sort_freelist();
+    sort_freelist();
 
-  node_t *node = __head;
-  node_t *prev = NULL;
+    while (current != NULL) {
+        if (previous != NULL && (char *)previous + previous->size + sizeof(header_t) == (char *)current) {
+            // Merge the current block with the previous one
+            previous->size += current->size + sizeof(node_t);
+            previous->next = current->next;
+            printf("Merge was successful\n");
+        } else {
+            // No coalescing occurred, move to the next block
+            printf("Merge was unsuccessful\n");
+            previous = current;
+        }
 
-  while (node != NULL) {
-    node_t *next = node->next;
-
-    // Check if the current node can be coalesced with the next node
-    if (prev != NULL && (char*)node + node->size + sizeof(header_t) == (char*)node->next) {
-      // Coalesce by merging the current node with the next node
-      node->size += node->next->size + sizeof(header_t);
-      node->next = node->next->next;
-
-      // Continue checking with the same node in case it can coalesce with the next one
-      continue;
+        current = current->next;
     }
-
-    prev = node;
-    node = next;
-  }
 }
 
 void destroy_heap() {
@@ -178,32 +173,6 @@ void *first_fit(size_t size_req) {
     printf("No block fits.\n");
     return NULL;
 }
-
-  /* traverse the free list from __head! when you encounter a region that
-   * is large enough to hold the buffer and required header, use it!
-   * If the region is larger than you need, split the buffer into two
-   * regions: first, the region that you allocate and second, a new (smaller)
-   * free region that goes on the free list in the same spot as the old free
-   * list node_t.
-   *
-   * If you traverse the whole list and can't find space, return a null
-   * pointer! :(
-   *
-   * Hints:
-   * --> see print_freelist_from to see how to traverse a linked list
-   * --> remember to keep track of the previous free region (prev) so
-   *     that, when you divide a free region, you can splice the linked
-   *     list together (you'll either use an entire free region, so you
-   *     point prev to what used to be next, or you'll create a new
-   *     (smaller) free region, which should have the same prev and the next
-   *     of the old region.
-   * --> If you divide a region, remember to update prev's next pointer!
-   */
-
-/* myalloc returns a void pointer to size bytes or NULL if it can't.
- * myalloc will check the free regions in the free list, which is pointed to by
- * the pointer __head.
- */
 
 void *myalloc(size_t size) {
   if (DEBUG) printf("\nIn myalloc:\n");
