@@ -38,22 +38,54 @@ void print_freelist_from(node_t *node) {
   }
 }
 
+void sort_freelist() {
+  node_t *cur = __head;
+  node_t *sorted = NULL;
+
+  while (cur != NULL) {
+    node_t *next = cur->next;
+    if (sorted == NULL || (char*)cur < (char*)sorted) {
+      cur->next = sorted;
+      sorted = cur;
+    } else {
+      node_t *sortedCur = sorted;
+      while (sortedCur->next != NULL && (char*)sortedCur->next < (char*)cur) {
+        sortedCur = sortedCur->next;
+      }
+      cur->next = sortedCur->next;
+      sortedCur->next = cur;
+    }
+    cur = next;
+  }
+
+  __head = sorted; // Update the head of the free list
+}
+
 void coalesce_freelist() {
-  /* coalesce all neighboring free regions in the free list */
-
   if (DEBUG) printf("In coalesce freelist...\n");
-  node_t *target = __head;
-  node_t *node = target->next;
-  node_t *prev = target;
 
-  /* traverse the free list, coalescing neighboring regions!
-   * some hints:
-   * --> it might be easier if you sort the free list first!
-   * --> it might require multiple passes over the free list!
-   * --> it might be easier if you call some helper functions from here
-   * --> see print_free_list_from for basic code for traversing a
-   *     linked list!
-   */
+  // Sort the free list before coalescing
+  sort_freelist();
+
+  node_t *node = __head;
+  node_t *prev = NULL;
+
+  while (node != NULL) {
+    node_t *next = node->next;
+
+    // Check if the current node can be coalesced with the next node
+    if (prev != NULL && (char*)node + node->size + sizeof(header_t) == (char*)node->next) {
+      // Coalesce by merging the current node with the next node
+      node->size += node->next->size + sizeof(header_t);
+      node->next = node->next->next;
+
+      // Continue checking with the same node in case it can coalesce with the next one
+      continue;
+    }
+
+    prev = node;
+    node = next;
+  }
 }
 
 void destroy_heap() {
@@ -86,50 +118,65 @@ void init_heap() {
 
 }
 
-void *first_fit(size_t req_size) {
-  void *ptr = NULL; /* pointer to the match that we'll return */
+void *first_fit(size_t size_req) {
+    node_t *prev = NULL;
+    node_t *listitem = __head;
 
-  if (DEBUG)
-    printf("In first_fit with size: %u and freelist @ %p\n",
-           (unsigned) req_size, __head);
-
-  node_t *listitem = __head; /* cursor into our linked list */
-  node_t *prev = NULL; /* if listitem is __head, then prev must be null */
-  header_t *alloc; /* a pointer to a header you can use for your allocation */
-
-  size_t total_size = req_size + sizeof(header_t);
-
-  while (listitem != NULL) {
-    if (listitem->size == total_size) // found a region with the correct size
+    while (listitem != NULL) 
     {
-      ptr = (void *)(listitem++);
-      if (prev != NULL)
-      {
-        prev->next = listitem->next;
-      }
-      else
-      {
-        __head = listitem-> next;
-      }
-      break;
+        // total size required
+        size_t total_size_req = size_req + sizeof(header_t);
+
+        if (listitem->size >= total_size_req) 
+        { 
+            size_t orig_size = listitem->size;
+
+            printf("Block of right size found. Original size is: %lu\n", orig_size);
+
+            // check if there is enough room for another allocation
+            if (orig_size - total_size_req >= sizeof(node_t)) 
+            {
+                // split
+                node_t *new_node = (node_t *)((char *)listitem + total_size_req);
+                new_node->size = orig_size - total_size_req;
+                new_node->next = listitem->next; //uUpdate the next pointer
+                listitem->next = new_node; // update the next pointer 
+                listitem->size = total_size_req - sizeof(node_t); // update the size 
+
+                printf("New block size after split: %lu\n", new_node->size);
+            } 
+            else 
+            {
+              // no split occurs
+              total_size_req = orig_size;  
+              printf("Size after allocation: %lu\n", listitem->size);
+            }
+
+            // update pointers
+            if (prev) 
+            {
+              prev->next = (orig_size == total_size_req) ? listitem->next : (node_t *)((char *)listitem + total_size_req);
+            } 
+            else 
+            {
+              __head = (orig_size == total_size_req) ? listitem->next : (node_t *)((char *)listitem + total_size_req);
+            }
+
+            // create and fill a new header
+            header_t *alloc_header = (header_t *)listitem;
+            alloc_header->size = size_req;
+            alloc_header->magic = HEAPMAGIC; // Set the magic number for the allocated block
+
+            printf("Returning allocated block @ %p\n", (char *)alloc_header + sizeof(header_t));
+
+            return (char *)alloc_header + sizeof(header_t);
+        }
+
+        prev = listitem;
+        listitem = listitem->next;
     }
-    
-    if (listitem->size > total_size) // found a region that is too large
-    {
-      ptr = (void *)(listitem++);
-      __head = (node_t *)((char *)ptr + req_size);
-      __head->size = listitem->size - total_size;
-      __head->next - listitem->next;
-      break;
-
-    }
-    prev = listitem;
-    listitem = listitem->next;
-
-  }
-
-  if (DEBUG) printf("Returning pointer: %p\n", ptr);
-  return ptr;
+    printf("No block fits.\n");
+    return NULL;
 }
 
   /* traverse the free list from __head! when you encounter a region that
@@ -187,10 +234,9 @@ void *myalloc(size_t size) {
  * undefined.
  */
 void myfree(void *ptr) {
-
   if (DEBUG) printf("\nIn myfree with pointer %p\n", ptr);
 
-  header_t *header = get_header(ptr); /* get the start of a header from a pointer */
+  header_t *header = get_header(ptr);
 
   if (DEBUG) { print_header(header); }
 
@@ -202,26 +248,15 @@ void myfree(void *ptr) {
     return;
   }
 
-  /* free the buffer pointed to by ptr!
-   * To do this, save the location of the old head (hint, it's __head).
-   * Then, change the allocation header_t to a node_t. Point __head
-   * at the new node_t and update the new head's next to point to the
-   * old head. Voila! You've just turned an allocated buffer into a
-   * free region!
-   */
+  size_t total_size = header->size + sizeof(header_t);
+  node_t *new_node = (node_t *)header;
+  new_node->size = total_size - sizeof(header_t);
+  new_node->next = __head;
 
+  // Update __head to point to the new free region
+  __head = new_node;
 
-  
+  coalesce_freelist();
 
-  /* save the current __head of the freelist */
-  /* ??? */
-
-  /* now set the __head to point to the header_t for the buffer being freed */
-  /* ??? */
-
-  /* set the new head's next to point to the old head that you saved */
-  /* ??? */
-
-  /* PROFIT!!! */
-
+  if (DEBUG) printf("Freed and coalesced. __head is now @ %p\n", __head);
 }
