@@ -5,8 +5,7 @@
 /* change me to 1 for more debugging information
  * change me to 0 for time testing and to clear your mind
  */
-#define DEBUG 0
-
+#define DEBUG 1
 void *__heap = NULL;
 node_t *__head = NULL;
 
@@ -61,26 +60,32 @@ void sort_freelist() {
   __head = sorted; // Update the head of the free list
 }
 
-void coalesce_freelist() {
-    node_t *current = __head;
-    node_t *previous = NULL;
+void coalesce_freelist() 
+{
+  node_t *current = __head;
+  node_t *previous = NULL;
 
-    sort_freelist();
+  sort_freelist();
 
-    while (current != NULL) {
-        if (previous != NULL && (char *)previous + previous->size + sizeof(header_t) == (char *)current) {
-            // Merge the current block with the previous one
-            previous->size += current->size + sizeof(node_t);
-            previous->next = current->next;
-            printf("Merge was successful\n");
-        } else {
-            // No coalescing occurred, move to the next block
-            printf("Merge was unsuccessful\n");
-            previous = current;
-        }
+  while (current != NULL) 
+  {      
+    if (previous != NULL && (char *)previous + previous->size + sizeof(header_t) == (char *)current)
+    {
+      // Merge the current block with the previous one
+      previous->size += current->size + sizeof(node_t);
+      previous->next = current->next;
+      printf("Merge was successful\n");
+    } 
+    else 
+    {
+      // No coalescing occurred, move to the next block
+      printf("Merge was unsuccessful\n");
+      previous = current;
 
-        current = current->next;
     }
+
+    current = current->next;
+  }
 }
 
 void destroy_heap() {
@@ -129,12 +134,12 @@ void *first_fit(size_t size_req) {
             printf("Block of right size found. Original size is: %lu\n", orig_size);
 
             // check if there is enough room for another allocation
-            if (orig_size - total_size_req >= sizeof(node_t)) 
+            if (orig_size - total_size_req >= sizeof(node_t) - 16)
             {
                 // split
                 node_t *new_node = (node_t *)((char *)listitem + total_size_req);
                 new_node->size = orig_size - total_size_req;
-                new_node->next = listitem->next; //uUpdate the next pointer
+                new_node->next = listitem->next; // update the next pointer
                 listitem->next = new_node; // update the next pointer 
                 listitem->size = total_size_req - sizeof(node_t); // update the size 
 
